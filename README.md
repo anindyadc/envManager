@@ -12,6 +12,8 @@ A production-standard secret and `.env` file manager for applications hosted acr
   - [Mac — Native (no Docker)](#mac--native-no-docker)
   - [Linux Server — Docker](#linux-server--docker)
 - [Environment Variables](#environment-variables)
+- [Email Setup (SMTP)](#email-setup-smtp)
+- [Backup & Restore (Docker)](#backup--restore-docker)
 - [First Login](#first-login)
 - [User Guide](#user-guide)
 - [CLI Tool](#cli-tool)
@@ -248,6 +250,15 @@ docker compose restart backend
 | `SERVER_IP` | `localhost` | Server's public IP (used in ALLOWED_ORIGINS) |
 | `DOMAIN` | `localhost` | Server's public domain (used in ALLOWED_ORIGINS) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `480` | JWT session duration (8 hours) |
+| `SMTP_HOST` | _(blank)_ | SMTP server hostname — leave blank to disable email |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_USER` | _(blank)_ | SMTP username |
+| `SMTP_PASSWORD` | _(blank)_ | SMTP password / App Password |
+| `SMTP_FROM` | _(blank)_ | Sender address shown in emails |
+| `SMTP_FROM_NAME` | `ENV Manager` | Sender display name |
+| `SMTP_TLS` | `false` | `true` for implicit TLS (port 465) |
+| `SMTP_STARTTLS` | `true` | `true` for STARTTLS (port 587) |
+| `APP_URL` | `http://localhost:8080` | Public URL — used to build links in emails |
 
 **Generate a production Fernet key:**
 ```bash
@@ -258,6 +269,112 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 ```bash
 openssl rand -hex 32
 ```
+
+---
+
+## Email Setup (SMTP)
+
+Email is **optional**. Without it the app works fully — registration, login, all features — but password recovery and email address verification are disabled.
+
+To enable email, set these variables in your `.env` file (Docker) or backend `.env`:
+
+```ini
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@gmail.com
+SMTP_PASSWORD=your-app-password   # use an App Password if 2FA is enabled
+SMTP_FROM=noreply@yourapp.com
+SMTP_FROM_NAME=ENV Manager
+SMTP_TLS=false          # true for port 465 (implicit TLS)
+SMTP_STARTTLS=true      # true for port 587 (STARTTLS — most providers)
+APP_URL=http://your-server:8080   # used to build links in emails
+```
+
+**Provider reference:**
+
+| Provider | Host | Port | TLS | STARTTLS |
+|---|---|---|---|---|
+| Gmail | `smtp.gmail.com` | `587` | `false` | `true` |
+| Outlook / Microsoft 365 | `smtp.office365.com` | `587` | `false` | `true` |
+| SendGrid | `smtp.sendgrid.net` | `587` | `false` | `true` |
+| Mailgun | `smtp.mailgun.org` | `587` | `false` | `true` |
+| Generic SSL | any | `465` | `true` | `false` |
+
+**What email enables:**
+
+| Feature | Endpoint |
+|---|---|
+| Email address verification on registration | `GET /api/v1/auth/verify-email/{token}` |
+| Resend verification email | `POST /api/v1/auth/verify-email/resend` |
+| Forgot password (sends 1-hour reset link) | `POST /api/v1/auth/forgot-password` |
+| Reset password with token | `POST /api/v1/auth/reset-password` |
+
+When `SMTP_HOST` is blank, all four endpoints return `503 Service Unavailable` and users are marked email-verified automatically on registration.
+
+---
+
+## Backup & Restore (Docker)
+
+All persistent data lives in the **PostgreSQL `pgdata` Docker volume**. The `ENCRYPTION_KEY` is equally critical — without it the SQL dump is unreadable (all secrets are encrypted at rest).
+
+### Take a backup
+
+```bash
+# 1. Database dump  (safe to run while the app is live)
+docker compose exec db pg_dump \
+  -U ${POSTGRES_USER:-envmgr} \
+  -d ${POSTGRES_DB:-envmanager} \
+  > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# 2. Keys (CRITICAL — keep this alongside the SQL dump)
+cp .env .env.backup_$(date +%Y%m%d)
+```
+
+The two values you must never lose:
+
+```ini
+ENCRYPTION_KEY=...   # all secrets become unreadable without this
+SECRET_KEY=...       # used to sign JWT tokens
+```
+
+### Restore
+
+```bash
+# 1. Start only the database
+docker compose up -d db
+
+# 2. Wait for it to be healthy (~10s), then restore
+cat your_backup.sql | docker compose exec -T db psql \
+  -U ${POSTGRES_USER:-envmgr} \
+  -d ${POSTGRES_DB:-envmanager}
+
+# 3. Make sure .env has the original ENCRYPTION_KEY, then start everything
+docker compose up -d
+```
+
+### Automate daily backups (cron)
+
+Add to the host's crontab (`crontab -e`):
+
+```bash
+# Daily at 02:00 — keep 7 days of backups
+0 2 * * * cd /path/to/envManager && \
+  docker compose exec -T db pg_dump -U envmgr -d envmanager \
+  > /backups/envmanager_$(date +\%Y\%m\%d).sql && \
+  find /backups -name "envmanager_*.sql" -mtime +7 -delete
+```
+
+### What is backed up
+
+| Data | Location | Included in dump |
+|---|---|---|
+| Users, roles, passwords (bcrypt) | `users` table | Yes |
+| Projects, environments | `projects`, `environments` tables | Yes |
+| Secrets (AES-256 encrypted) | `secrets` table | Yes |
+| SSH server credentials (encrypted) | `ssh_credentials` table | Yes |
+| Audit log | `audit_logs` table | Yes |
+| Share links | `share_links` table | Yes |
+| Encryption key | `.env` → `ENCRYPTION_KEY` | **Must be copied separately** |
 
 ---
 

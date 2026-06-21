@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     # CORS
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # Email / SMTP  (leave smtp_host blank to disable email features)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_from_name: str = "ENV Manager"
+    smtp_tls: bool = False       # True for port 465 (implicit TLS)
+    smtp_starttls: bool = True   # True for port 587 (STARTTLS)
+
+    # Public URL of the app — used to build links in emails
+    app_url: str = "http://localhost:8080"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

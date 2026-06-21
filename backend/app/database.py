@@ -33,7 +33,7 @@ async def get_db():
 
 async def init_db():
     async with engine.begin() as conn:
-        from app.models import user, project, environment, secret, audit, project_member, share_link, ssh_credential  # noqa
+        from app.models import user, project, environment, secret, audit, project_member, share_link, ssh_credential, auth_token  # noqa
         await conn.run_sync(Base.metadata.create_all)
         await _migrate(conn)
 
@@ -48,6 +48,8 @@ async def _migrate(conn):
             "ALTER TABLE ssh_credentials ALTER COLUMN encrypted_private_key DROP NOT NULL",
             "ALTER TABLE environments ADD COLUMN IF NOT EXISTS ssh_credential_id VARCHAR",
             "ALTER TABLE environments ADD COLUMN IF NOT EXISTS remote_path VARCHAR",
+            # email auth
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE",
         ]
     else:
         # SQLite doesn't support ALTER COLUMN or IF NOT EXISTS — skip silently;

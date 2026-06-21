@@ -23,6 +23,16 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ALLOWED_ORIGINS: '["http://localhost","http://localhost:8080","http://${SERVER_IP:-10.10.10.102}","http://${SERVER_IP:-10.10.10.102}:8080","https://${DOMAIN:-localhost}"]'
+      # Email — leave SMTP_HOST blank to disable (registration still works without it)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-ENV Manager}
+      SMTP_TLS: ${SMTP_TLS:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      APP_URL: ${APP_URL:-http://${SERVER_IP:-10.10.10.102}:8080}
     depends_on:
       db:
         condition: service_healthy

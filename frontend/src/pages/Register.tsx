@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi, getApiError } from '../api/client'
-import { KeyRound, AlertCircle } from 'lucide-react'
+import { KeyRound, AlertCircle, CheckCircle } from 'lucide-react'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -9,13 +9,19 @@ export default function Register() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const [verifyPending, setVerifyPending] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirm) { setError('Passwords do not match'); return }
     setError(''); setLoading(true)
     try {
-      await authApi.register({ email: form.email, full_name: form.full_name, password: form.password })
-      navigate('/login')
+      const res = await authApi.register({ email: form.email, full_name: form.full_name, password: form.password })
+      if (res.data?.email_verified === false) {
+        setVerifyPending(true)
+      } else {
+        navigate('/login')
+      }
     } catch (err: any) {
       setError(getApiError(err, 'Registration failed'))
     } finally { setLoading(false) }
@@ -33,6 +39,20 @@ export default function Register() {
         </div>
 
         <div className="bg-white rounded-2xl p-8 shadow-2xl">
+          {verifyPending ? (
+            <div className="text-center">
+              <CheckCircle className="mx-auto text-green-500 mb-3" size={40} />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h2>
+              <p className="text-gray-500 text-sm mb-6">
+                We sent a verification link to <strong>{form.email}</strong>.
+                Click it to activate your account.
+              </p>
+              <Link to="/login" className="text-brand-600 font-medium hover:underline text-sm">
+                Back to sign in
+              </Link>
+            </div>
+          ) : (
+          <>
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Register</h2>
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4 text-red-700 text-sm">
@@ -68,6 +88,8 @@ export default function Register() {
             Already have an account?{' '}
             <Link to="/login" className="text-brand-600 font-medium hover:underline">Sign in</Link>
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>
