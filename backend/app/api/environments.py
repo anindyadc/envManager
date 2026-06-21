@@ -25,6 +25,8 @@ async def _get_env_or_404(env_id: str, project_id: str, db: AsyncSession) -> Env
 
 
 async def _enrich(env: Environment, db: AsyncSession) -> EnvironmentResponse:
+    await db.flush()
+    await db.refresh(env)
     count = await db.execute(
         select(func.count(Application.id)).where(Application.environment_id == env.id)
     )

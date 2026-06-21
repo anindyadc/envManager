@@ -39,6 +39,8 @@ async def get_app_or_404(app_id: str, env_id: str, db: AsyncSession) -> Applicat
 
 
 async def enrich_app(app: Application, db: AsyncSession) -> ApplicationResponse:
+    await db.flush()
+    await db.refresh(app)
     count = await db.execute(
         select(func.count(Secret.id)).where(Secret.application_id == app.id)
     )
