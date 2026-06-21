@@ -67,6 +67,8 @@ async def _migrate(conn):
         """,
         # application_id on secrets (nullable during migration)
         "ALTER TABLE secrets ADD COLUMN IF NOT EXISTS application_id VARCHAR REFERENCES applications(id) ON DELETE CASCADE",
+        # environment_id is now legacy — secrets belong to applications, not environments directly
+        "ALTER TABLE secrets ALTER COLUMN environment_id DROP NOT NULL",
         # application_id on share_links; make environment_id nullable for legacy rows
         "ALTER TABLE share_links ADD COLUMN IF NOT EXISTS application_id VARCHAR REFERENCES applications(id) ON DELETE CASCADE",
         "ALTER TABLE share_links ALTER COLUMN environment_id DROP NOT NULL",
