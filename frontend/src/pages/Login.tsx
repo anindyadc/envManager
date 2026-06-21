@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { authApi } from '../api/client'
+import { authApi, getApiError } from '../api/client'
 import { setAuth } from '../hooks/useAuth'
 import { KeyRound, AlertCircle } from 'lucide-react'
 import type { TokenResponse } from '../types'
@@ -22,7 +22,7 @@ export default function Login() {
       setAuth(data.user, data.access_token)
       navigate('/')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed')
+      setError(getApiError(err, 'Login failed'))
     } finally {
       setLoading(false)
     }

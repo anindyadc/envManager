@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { projectsApi, envsApi } from '../api/client'
+import { projectsApi, envsApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { Plus, ChevronRight, Pencil, Trash2, ArrowLeft, X, Server, Users } from 'lucide-react'
 import type { Project, Environment, EnvironmentType } from '../types'
@@ -26,7 +26,7 @@ function EnvModal({ projectId, env, onClose }: { projectId: string; env?: Enviro
     mutationFn: (data: typeof form) =>
       env ? envsApi.update(projectId, env.id, data) : envsApi.create(projectId, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['environments', projectId] }); onClose() },
-    onError: (err: any) => setError(err.response?.data?.detail || 'Failed to save'),
+    onError: (err: any) => setError(getApiError(err, 'Failed to save')),
   })
 
   return (

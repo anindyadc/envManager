@@ -128,3 +128,10 @@ export const sshCredentialsApi = {
 export const auditApi = {
   list: (params?: object) => api.get('/audit', { params }),
 }
+
+export function getApiError(err: any, fallback = 'An error occurred'): string {
+  const detail = err?.response?.data?.detail
+  if (Array.isArray(detail)) return detail.map((d: any) => d.msg).join(', ')
+  if (typeof detail === 'string') return detail
+  return fallback
+}

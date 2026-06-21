@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { secretsApi, sshCredentialsApi, envsApi } from '../api/client'
+import { secretsApi, sshCredentialsApi, envsApi, getApiError } from '../api/client'
 import type { SSHCredential, Environment } from '../types'
 import { X, Terminal, ChevronRight, Upload, Server, Link, KeyRound, Lock } from 'lucide-react'
 
@@ -78,7 +78,7 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
       setFetchError('')
       setStep('preview')
     },
-    onError: (err: any) => setFetchError(err.response?.data?.detail || 'Connection failed'),
+    onError: (err: any) => setFetchError(getApiError(err, 'Connection failed')),
   })
 
   const importMutation = useMutation({
@@ -94,7 +94,7 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
         saveEnvConfig.mutate({ remote_path: manual.path })
       }
     },
-    onError: (err: any) => setFetchError(err.response?.data?.detail || 'Import failed'),
+    onError: (err: any) => setFetchError(getApiError(err, 'Import failed')),
   })
 
   const canFetch =

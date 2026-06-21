@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { membersApi } from '../api/client'
+import { membersApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { X, UserPlus, Trash2, Shield, Pencil, Check } from 'lucide-react'
 import type { ProjectMember, UserRole } from '../types'
@@ -45,7 +45,7 @@ export default function ShareModal({ projectId, projectName, onClose }: Props) {
       setEmail('')
       setAddError('')
     },
-    onError: (err: any) => setAddError(err.response?.data?.detail || 'Failed to add member'),
+    onError: (err: any) => setAddError(getApiError(err, 'Failed to add member')),
   })
 
   const updateMutation = useMutation({

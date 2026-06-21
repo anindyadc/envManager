@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { secretsApi, envsApi, projectsApi } from '../api/client'
+import { secretsApi, envsApi, projectsApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
   Plus, Eye, EyeOff, Pencil, Trash2, ArrowLeft, Download, Upload,
@@ -123,7 +123,7 @@ function AddSecretModal({ projectId, envId, onClose }: { projectId: string; envI
   const mutation = useMutation({
     mutationFn: () => secretsApi.create(projectId, envId, form),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['secrets', envId] }); onClose() },
-    onError: (err: any) => setError(err.response?.data?.detail || 'Failed to add'),
+    onError: (err: any) => setError(getApiError(err, 'Failed to add')),
   })
 
   return (

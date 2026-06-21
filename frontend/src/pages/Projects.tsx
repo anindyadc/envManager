@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { projectsApi } from '../api/client'
+import { projectsApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { Plus, Cloud, Server, Pencil, Trash2, ChevronRight, X } from 'lucide-react'
 import type { Project, CloudProvider } from '../types'
@@ -30,7 +30,7 @@ function ProjectModal({ project, onClose }: { project?: Project; onClose: () => 
     mutationFn: (data: typeof form) =>
       project ? projectsApi.update(project.id, data) : projectsApi.create(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['projects'] }); onClose() },
-    onError: (err: any) => setError(err.response?.data?.detail || 'Failed to save'),
+    onError: (err: any) => setError(getApiError(err, 'Failed to save')),
   })
 
   return (

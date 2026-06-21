@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { shareLinksApi } from '../api/client'
+import { shareLinksApi, getApiError } from '../api/client'
 import { Key, Eye, EyeOff, Copy, Check, Lock, Clock } from 'lucide-react'
 
 interface PublicSecret {
@@ -84,7 +84,7 @@ export default function ShareView() {
   }
 
   if (error) {
-    const msg = (error as any)?.response?.data?.detail ?? 'Link not found or expired'
+    const msg = getApiError(error, 'Link not found or expired')
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="card p-8 max-w-md w-full text-center">

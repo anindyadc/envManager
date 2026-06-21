@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { authApi } from '../api/client'
+import { authApi, getApiError } from '../api/client'
 import { KeyRound, AlertCircle } from 'lucide-react'
 
 export default function Register() {
@@ -17,7 +17,7 @@ export default function Register() {
       await authApi.register({ email: form.email, full_name: form.full_name, password: form.password })
       navigate('/login')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed')
+      setError(getApiError(err, 'Registration failed'))
     } finally { setLoading(false) }
   }
 

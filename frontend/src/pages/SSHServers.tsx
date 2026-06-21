@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { sshCredentialsApi } from '../api/client'
+import { sshCredentialsApi, getApiError } from '../api/client'
 import type { SSHCredential } from '../types'
 import { Server, Plus, Pencil, Trash2, X, Check, KeyRound, Lock } from 'lucide-react'
 
@@ -154,13 +154,13 @@ function CredentialModal({ initial, onClose }: { initial?: SSHCredential; onClos
         ...(data.auth_type === 'key' ? { private_key: data.private_key } : { password: data.password }),
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ssh-credentials'] }); onClose() },
-    onError: (err: any) => setError(err.response?.data?.detail || 'Failed to save'),
+    onError: (err: any) => setError(getApiError(err, 'Failed to save')),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: object }) => sshCredentialsApi.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ssh-credentials'] }); onClose() },
-    onError: (err: any) => setError(err.response?.data?.detail || 'Failed to update'),
+    onError: (err: any) => setError(getApiError(err, 'Failed to update')),
   })
 
   const handleSave = (data: FormState) => {
