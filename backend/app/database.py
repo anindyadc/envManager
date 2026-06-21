@@ -104,8 +104,11 @@ async def _migrate(conn):
         """,
     ]
 
-    for sql in ddl:
+    for i, sql in enumerate(ddl):
+        sp = f"sp_migrate_{i}"
         try:
+            await conn.exec_driver_sql(f"SAVEPOINT {sp}")
             await conn.exec_driver_sql(sql.strip())
+            await conn.exec_driver_sql(f"RELEASE SAVEPOINT {sp}")
         except Exception:
-            pass
+            await conn.exec_driver_sql(f"ROLLBACK TO SAVEPOINT {sp}")
