@@ -6,7 +6,8 @@ from app.database import get_db
 from app.models.environment import Environment
 from app.models.project import Project
 from app.models.secret import Secret
-from app.schemas.environment import EnvironmentCreate, EnvironmentUpdate, EnvironmentResponse
+from app.models.ssh_credential import SSHCredential
+from app.schemas.environment import EnvironmentCreate, EnvironmentUpdate, EnvironmentResponse, SSHServerSummary
 from app.core.dependencies import get_current_user, require_editor
 from app.models.user import User
 from app.services.audit_service import log_action
@@ -31,6 +32,15 @@ async def _enrich(env: Environment, db: AsyncSession) -> EnvironmentResponse:
     secret_count = count_result.scalar() or 0
     data = EnvironmentResponse.model_validate(env)
     data.secret_count = secret_count
+
+    if env.ssh_credential_id:
+        cred_result = await db.execute(
+            select(SSHCredential).where(SSHCredential.id == env.ssh_credential_id)
+        )
+        cred = cred_result.scalar_one_or_none()
+        if cred:
+            data.ssh_server = SSHServerSummary.model_validate(cred)
+
     return data
 
 
@@ -85,7 +95,7 @@ async def update_environment(
     current_user: User = Depends(require_editor),
 ):
     env = await _get_env_or_404(env_id, project_id, db)
-    for field, val in payload.model_dump(exclude_none=True).items():
+    for field, val in payload.model_dump(exclude_unset=True).items():
         setattr(env, field, val)
     await log_action(db, current_user.id, "UPDATE", "environment", env.id, env.name)
     return await _enrich(env, db)

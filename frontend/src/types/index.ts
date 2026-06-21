@@ -25,6 +25,14 @@ export interface Project {
   environment_count: number
 }
 
+export interface SSHServerSummary {
+  id: string
+  label: string
+  host: string
+  port: number
+  username: string
+}
+
 export interface Environment {
   id: string
   name: string
@@ -32,6 +40,7 @@ export interface Environment {
   project_id: string
   ssh_credential_id: string | null
   remote_path: string | null
+  ssh_server: SSHServerSummary | null
   created_at: string
   updated_at: string
   secret_count: number

@@ -3,6 +3,16 @@ from datetime import datetime
 from app.models.environment import EnvironmentType
 
 
+class SSHServerSummary(BaseModel):
+    id: str
+    label: str
+    host: str
+    port: int
+    username: str
+
+    model_config = {"from_attributes": True}
+
+
 class EnvironmentCreate(BaseModel):
     name: str
     env_type: EnvironmentType = EnvironmentType.development
@@ -22,6 +32,7 @@ class EnvironmentResponse(BaseModel):
     project_id: str
     ssh_credential_id: str | None = None
     remote_path: str | None = None
+    ssh_server: SSHServerSummary | None = None
     created_at: datetime
     updated_at: datetime
     secret_count: int = 0

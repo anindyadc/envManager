@@ -41,12 +41,19 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
     queryFn: () => sshCredentialsApi.list().then(r => r.data),
   })
 
-  // When credentials load, if env has a saved credential_id ensure mode is 'saved'
+  // When credentials load, ensure saved mode is selected if env has a linked server
   useEffect(() => {
-    if (env.ssh_credential_id && credentials.length > 0) {
-      setMode('saved')
-    }
+    if (env.ssh_credential_id && credentials.length > 0) setMode('saved')
   }, [credentials, env.ssh_credential_id])
+
+  // Reset path when switching servers; restore saved path when switching back to the linked server
+  useEffect(() => {
+    if (selectedCredId === env.ssh_credential_id) {
+      setRemotePath(env.remote_path ?? '')
+    } else {
+      setRemotePath('')
+    }
+  }, [selectedCredId])
 
   const selectedCred = credentials.find(c => c.id === selectedCredId)
 
@@ -190,11 +197,15 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
                     <label className="block text-sm font-medium text-gray-700 mb-1">Remote .env path *</label>
                     <input className="input font-mono" required placeholder="/home/ubuntu/myapp/.env"
                       value={remotePath} onChange={e => setRemotePath(e.target.value)} />
-                    {env.ssh_credential_id === selectedCredId && env.remote_path && (
+                    {selectedCredId === env.ssh_credential_id && env.remote_path ? (
                       <p className="text-xs text-green-600 mt-1">
-                        ✓ Pre-filled from this environment's saved config
+                        ✓ Auto-filled from this environment's linked server config
                       </p>
-                    )}
+                    ) : selectedCredId && selectedCredId !== env.ssh_credential_id ? (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Different server selected — enter the .env path for this server
+                      </p>
+                    ) : null}
                   </div>
                 </>
               ) : (

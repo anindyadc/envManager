@@ -5,7 +5,7 @@ import { secretsApi, envsApi, projectsApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
   Plus, Eye, EyeOff, Pencil, Trash2, ArrowLeft, Download, Upload,
-  Copy, Check, X, History, Key, RefreshCw, Link2
+  Copy, Check, X, History, Key, RefreshCw, Link2, Server, Unlink
 } from 'lucide-react'
 import type { Secret, Environment, Project } from '../types'
 import ShareLinkModal from '../components/ShareLinkModal'
@@ -259,6 +259,11 @@ export default function EnvironmentDetail() {
     },
   })
 
+  const unlinkServerMutation = useMutation({
+    mutationFn: () => envsApi.update(projectId!, envId!, { ssh_credential_id: null, remote_path: null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['environment', projectId, envId] }),
+  })
+
   const { data: project } = useQuery<Project>({
     queryKey: ['project', projectId],
     queryFn: () => projectsApi.get(projectId!).then(r => r.data),
@@ -302,6 +307,24 @@ export default function EnvironmentDetail() {
             </span>
           </div>
           <p className="text-gray-400 text-sm mt-0.5">{secrets.length} secret{secrets.length !== 1 ? 's' : ''}</p>
+          {env?.ssh_server && env.remote_path && (
+            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 bg-gray-50 border rounded-lg px-3 py-1.5 w-fit">
+              <Server size={12} className="text-brand-500 flex-shrink-0" />
+              <span className="font-medium text-gray-700">{env.ssh_server.label}</span>
+              <span className="text-gray-400">{env.ssh_server.username}@{env.ssh_server.host}:{env.ssh_server.port}</span>
+              <span className="text-gray-300">→</span>
+              <code className="font-mono text-gray-600">{env.remote_path}</code>
+              {isEditor && (
+                <button
+                  onClick={() => { if (confirm('Unlink this server from the environment?')) unlinkServerMutation.mutate() }}
+                  className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Unlink server"
+                >
+                  <Unlink size={11} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <button onClick={handleExport} className="btn-secondary">
@@ -316,7 +339,10 @@ export default function EnvironmentDetail() {
                 <Upload size={15} /> Import .env
               </button>
               <button onClick={() => setShowSSHImport(true)} className="btn-secondary">
-                <Upload size={15} /> Import from Server
+                {env?.ssh_server
+                  ? <><RefreshCw size={15} /> Refresh from Server</>
+                  : <><Server size={15} /> Import from Server</>
+                }
               </button>
               <button
                 onClick={() => { setReevalResult(null); reevaluateMutation.mutate() }}
