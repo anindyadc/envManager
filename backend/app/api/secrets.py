@@ -416,6 +416,13 @@ async def fetch_from_ssh(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"SSH error: {exc}")
 
+    # Persist the server+path linkage on the environment so the frontend can auto-fill next time.
+    # Only for saved credentials (inline/manual mode has no credential to link).
+    env = await _get_env_or_404(env_id, project_id, db)
+    if payload.credential_id:
+        env.ssh_credential_id = payload.credential_id
+        env.remote_path = payload.path
+
     await log_action(db, current_user.id, "READ", "environment", env_id,
                      detail=f"ssh-fetch host={host} path={payload.path}")
     return {"content": content}

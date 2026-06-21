@@ -61,13 +61,6 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => setManual(m => ({ ...m, [field]: field === 'port' ? Number(e.target.value) : e.target.value }))
 
-  // Save ssh config back to the environment after a successful import
-  const saveEnvConfig = useMutation({
-    mutationFn: (data: { ssh_credential_id?: string; remote_path?: string }) =>
-      envsApi.update(projectId, envId, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['environment', projectId, envId] }),
-  })
-
   const fetchMutation = useMutation({
     mutationFn: () => {
       const params =
@@ -84,6 +77,11 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
       setContent(res.data.content)
       setFetchError('')
       setStep('preview')
+      // Backend persists ssh_credential_id + remote_path on fetch (saved mode only).
+      // Invalidate so the parent banner reflects the link immediately.
+      if (mode === 'saved') {
+        qc.invalidateQueries({ queryKey: ['environment', projectId, envId] })
+      }
     },
     onError: (err: any) => setFetchError(getApiError(err, 'Connection failed')),
   })
@@ -93,12 +91,10 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
     onSuccess: (res) => {
       setImportResult(res.data)
       qc.invalidateQueries({ queryKey: ['secrets', envId] })
-      // Persist the SSH config that worked back to the environment
-      if (mode === 'saved' && selectedCredId) {
-        saveEnvConfig.mutate({ ssh_credential_id: selectedCredId, remote_path: remotePath })
-      } else if (mode === 'manual') {
-        // For manual mode, only save the path (no credential to save)
-        saveEnvConfig.mutate({ remote_path: manual.path })
+      // Manual mode: save the path (no saved credential, so backend can't do it)
+      if (mode === 'manual') {
+        envsApi.update(projectId, envId, { remote_path: manual.path })
+          .then(() => qc.invalidateQueries({ queryKey: ['environment', projectId, envId] }))
       }
     },
     onError: (err: any) => setFetchError(getApiError(err, 'Import failed')),
