@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { secretsApi, sshCredentialsApi, envsApi, getApiError } from '../api/client'
-import type { SSHCredential, Environment } from '../types'
+import { secretsApi, sshCredentialsApi, appsApi, getApiError } from '../api/client'
+import type { SSHCredential, Application } from '../types'
 import { X, Terminal, ChevronRight, Upload, Server, Link, KeyRound, Lock } from 'lucide-react'
 
 interface Props {
   projectId: string
   envId: string
-  env: Environment
+  appId: string
+  app: Application
   onClose: () => void
 }
 
@@ -15,16 +16,14 @@ type Step = 'connect' | 'preview'
 type Mode = 'saved' | 'manual'
 type AuthType = 'key' | 'password'
 
-export default function SSHImportModal({ projectId, envId, env, onClose }: Props) {
+export default function SSHImportModal({ projectId, envId, appId, app, onClose }: Props) {
   const qc = useQueryClient()
   const [step, setStep] = useState<Step>('connect')
-  const [mode, setMode] = useState<Mode>(env.ssh_credential_id ? 'saved' : 'saved')
+  const [mode, setMode] = useState<Mode>('saved')
 
-  // Saved-credential mode — pre-fill from environment's saved SSH config
-  const [selectedCredId, setSelectedCredId] = useState(env.ssh_credential_id ?? '')
-  const [remotePath, setRemotePath] = useState(env.remote_path ?? '')
+  const [selectedCredId, setSelectedCredId] = useState(app.ssh_credential_id ?? '')
+  const [remotePath, setRemotePath] = useState(app.remote_path ?? '')
 
-  // Manual mode
   const [manual, setManual] = useState({
     host: '', port: 22, username: '',
     auth_type: 'key' as AuthType,
@@ -41,15 +40,14 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
     queryFn: () => sshCredentialsApi.list().then(r => r.data),
   })
 
-  // When credentials load, ensure saved mode is selected if env has a linked server
   useEffect(() => {
-    if (env.ssh_credential_id && credentials.length > 0) setMode('saved')
-  }, [credentials, env.ssh_credential_id])
+    if (app.ssh_credential_id && credentials.length > 0) setMode('saved')
+  }, [credentials, app.ssh_credential_id])
 
-  // Reset path when switching servers; restore saved path when switching back to the linked server
+  // Restore saved path when switching back to the linked server; clear when switching away
   useEffect(() => {
-    if (selectedCredId === env.ssh_credential_id) {
-      setRemotePath(env.remote_path ?? '')
+    if (selectedCredId === app.ssh_credential_id) {
+      setRemotePath(app.remote_path ?? '')
     } else {
       setRemotePath('')
     }
@@ -71,30 +69,33 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
               auth_type: manual.auth_type, path: manual.path,
               ...(manual.auth_type === 'key' ? { private_key: manual.private_key } : { password: manual.password }),
             }
-      return secretsApi.sshFetch(projectId, envId, params)
+      return secretsApi.sshFetch(projectId, envId, appId, params)
     },
     onSuccess: (res) => {
       setContent(res.data.content)
       setFetchError('')
       setStep('preview')
-      // Backend persists ssh_credential_id + remote_path on fetch (saved mode only).
-      // Invalidate so the parent banner reflects the link immediately.
+      // Backend saved ssh_credential_id + remote_path on the application (saved mode)
       if (mode === 'saved') {
-        qc.invalidateQueries({ queryKey: ['environment', projectId, envId] })
+        qc.invalidateQueries({ queryKey: ['application', projectId, envId, appId] })
+        qc.invalidateQueries({ queryKey: ['applications', envId] })
       }
     },
     onError: (err: any) => setFetchError(getApiError(err, 'Connection failed')),
   })
 
   const importMutation = useMutation({
-    mutationFn: () => secretsApi.importDotenv(projectId, envId, content, overwrite),
+    mutationFn: () => secretsApi.importDotenv(projectId, envId, appId, content, overwrite),
     onSuccess: (res) => {
       setImportResult(res.data)
-      qc.invalidateQueries({ queryKey: ['secrets', envId] })
-      // Manual mode: save the path (no saved credential, so backend can't do it)
+      qc.invalidateQueries({ queryKey: ['secrets', appId] })
+      // Manual mode: save the path client-side (no saved credential to auto-link)
       if (mode === 'manual') {
-        envsApi.update(projectId, envId, { remote_path: manual.path })
-          .then(() => qc.invalidateQueries({ queryKey: ['environment', projectId, envId] }))
+        appsApi.update(projectId, envId, appId, { remote_path: manual.path })
+          .then(() => {
+            qc.invalidateQueries({ queryKey: ['application', projectId, envId, appId] })
+            qc.invalidateQueries({ queryKey: ['applications', envId] })
+          })
       }
     },
     onError: (err: any) => setFetchError(getApiError(err, 'Import failed')),
@@ -115,7 +116,6 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <Terminal size={18} className="text-brand-600" />
@@ -124,15 +124,10 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
           <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        {/* Step indicator */}
         <div className="flex items-center gap-2 px-5 py-3 border-b bg-gray-50 text-sm flex-shrink-0">
-          <span className={step === 'connect' ? 'font-semibold text-brand-700' : 'text-gray-400'}>
-            1. Connect
-          </span>
+          <span className={step === 'connect' ? 'font-semibold text-brand-700' : 'text-gray-400'}>1. Connect</span>
           <ChevronRight size={14} className="text-gray-300" />
-          <span className={step === 'preview' ? 'font-semibold text-brand-700' : 'text-gray-400'}>
-            2. Preview &amp; Import
-          </span>
+          <span className={step === 'preview' ? 'font-semibold text-brand-700' : 'text-gray-400'}>2. Preview &amp; Import</span>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5">
@@ -147,12 +142,11 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mb-4">Server config saved to this environment for next time.</p>
+              <p className="text-xs text-gray-400 mb-4">Server config saved to this application for next time.</p>
               <button className="btn-primary" onClick={onClose}>Done</button>
             </div>
           ) : step === 'connect' ? (
             <form onSubmit={e => { e.preventDefault(); fetchMutation.mutate() }} className="space-y-5">
-              {/* Mode toggle */}
               <div className="flex rounded-lg border overflow-hidden text-sm">
                 <button type="button" onClick={() => setMode('saved')}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 transition-colors ${mode === 'saved' ? 'bg-brand-600 text-white font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -193,11 +187,11 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
                     <label className="block text-sm font-medium text-gray-700 mb-1">Remote .env path *</label>
                     <input className="input font-mono" required placeholder="/home/ubuntu/myapp/.env"
                       value={remotePath} onChange={e => setRemotePath(e.target.value)} />
-                    {selectedCredId && selectedCredId === env.ssh_credential_id && env.remote_path ? (
+                    {selectedCredId && selectedCredId === app.ssh_credential_id && app.remote_path ? (
                       <p className="text-xs text-green-600 mt-1">
-                        ✓ Auto-filled from this environment's linked server config
+                        ✓ Auto-filled from this application's linked server config
                       </p>
-                    ) : selectedCredId && env.ssh_credential_id && selectedCredId !== env.ssh_credential_id ? (
+                    ) : selectedCredId && app.ssh_credential_id && selectedCredId !== app.ssh_credential_id ? (
                       <p className="text-xs text-amber-600 mt-1">
                         Different server selected — enter the .env path for this server
                       </p>

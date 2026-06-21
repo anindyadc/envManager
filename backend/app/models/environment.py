@@ -21,13 +21,10 @@ class Environment(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     env_type: Mapped[EnvironmentType] = mapped_column(Enum(EnvironmentType), default=EnvironmentType.development)
     project_id: Mapped[str] = mapped_column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    # optional link to a saved SSH server + path for this environment
-    ssh_credential_id: Mapped[str | None] = mapped_column(String, ForeignKey("ssh_credentials.id", ondelete="SET NULL"), nullable=True)
-    remote_path: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     project: Mapped["Project"] = relationship("Project", back_populates="environments")  # noqa
-    secrets: Mapped[list["Secret"]] = relationship(  # noqa
-        "Secret", back_populates="environment", cascade="all, delete-orphan"
+    applications: Mapped[list["Application"]] = relationship(  # noqa
+        "Application", back_populates="environment", cascade="all, delete-orphan"
     )

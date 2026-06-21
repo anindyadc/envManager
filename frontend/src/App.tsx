@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import EnvironmentDetail from './pages/EnvironmentDetail'
+import ApplicationDetail from './pages/ApplicationDetail'
 import AuditLogs from './pages/AuditLogs'
 import TeamManagement from './pages/TeamManagement'
 import ShareView from './pages/ShareView'
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:projectId" element={<ProjectDetail />} />
           <Route path="projects/:projectId/environments/:envId" element={<EnvironmentDetail />} />
+          <Route path="projects/:projectId/environments/:envId/applications/:appId" element={<ApplicationDetail />} />
           <Route path="ssh-servers" element={<SSHServers />} />
           <Route path="audit" element={<AuditLogs />} />
           <Route path="team" element={<TeamManagement />} />

@@ -22,36 +22,36 @@ function timeLeft(expiresAt: string): string {
 interface Props {
   projectId: string
   envId: string
-  envName: string
+  appId: string
+  appName: string
   onClose: () => void
 }
 
-export default function ShareLinkModal({ projectId, envId, envName, onClose }: Props) {
+export default function ShareLinkModal({ projectId, envId, appId, appName, onClose }: Props) {
   const qc = useQueryClient()
   const [hours, setHours] = useState(24)
   const [note, setNote] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const { data: links = [], isLoading } = useQuery<ShareLink[]>({
-    queryKey: ['share-links', envId],
-    queryFn: () => shareLinksApi.list(projectId, envId).then(r => r.data),
+    queryKey: ['share-links', appId],
+    queryFn: () => shareLinksApi.list(projectId, envId, appId).then(r => r.data),
   })
 
   const createMutation = useMutation({
-    mutationFn: () => shareLinksApi.create(projectId, envId, hours, note || undefined),
+    mutationFn: () => shareLinksApi.create(projectId, envId, appId, hours, note || undefined),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['share-links', envId] })
+      qc.invalidateQueries({ queryKey: ['share-links', appId] })
       setNote('')
     },
   })
 
   const revokeMutation = useMutation({
-    mutationFn: (linkId: string) => shareLinksApi.revoke(projectId, envId, linkId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-links', envId] }),
+    mutationFn: (linkId: string) => shareLinksApi.revoke(projectId, envId, appId, linkId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['share-links', appId] }),
   })
 
-  const shareUrl = (token: string) =>
-    `${window.location.origin}/share/${token}`
+  const shareUrl = (token: string) => `${window.location.origin}/share/${token}`
 
   const handleCopy = async (link: ShareLink) => {
     await navigator.clipboard.writeText(shareUrl(link.token))
@@ -62,25 +62,22 @@ export default function ShareLinkModal({ projectId, envId, envName, onClose }: P
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
           <div>
             <h2 className="font-semibold text-lg flex items-center gap-2">
               <Link2 size={18} className="text-brand-500" />
               Share Read-Only Link
             </h2>
-            <p className="text-sm text-gray-500 mt-0.5">{envName}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{appName}</p>
           </div>
           <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        {/* Info banner */}
         <div className="mx-5 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-          Anyone with this link can view all environment keys (sensitive values remain masked).
+          Anyone with this link can view all secrets for <strong>{appName}</strong> (sensitive values remain masked).
           The link expires automatically — no account required.
         </div>
 
-        {/* Create form */}
         <div className="p-5 border-b space-y-3">
           <div className="flex gap-2">
             <div className="flex-1">
@@ -111,7 +108,6 @@ export default function ShareLinkModal({ projectId, envId, envName, onClose }: P
           </button>
         </div>
 
-        {/* Existing links */}
         <div className="p-5 max-h-64 overflow-y-auto">
           <p className="text-sm font-medium text-gray-700 mb-3">Active links ({links.length})</p>
           {isLoading ? (
@@ -125,11 +121,9 @@ export default function ShareLinkModal({ projectId, envId, envName, onClose }: P
                 return (
                   <div key={link.id} className={`flex items-center gap-3 p-3 rounded-lg border ${expired ? 'border-red-100 bg-red-50 opacity-60' : 'border-gray-100 bg-gray-50'}`}>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <code className="text-xs font-mono text-gray-600 truncate max-w-[200px]">
-                          {shareUrl(link.token)}
-                        </code>
-                      </div>
+                      <code className="text-xs font-mono text-gray-600 truncate max-w-[200px] block">
+                        {shareUrl(link.token)}
+                      </code>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                         <span className={`flex items-center gap-1 ${expired ? 'text-red-500' : 'text-gray-400'}`}>
                           <Clock size={10} /> {timeLeft(link.expires_at)}

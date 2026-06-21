@@ -27,7 +27,7 @@ class SecretResponse(BaseModel):
     key: str
     value: str | None  # None when masked
     is_sensitive: bool
-    environment_id: str
+    application_id: str
     created_by: str
     created_at: datetime
     updated_at: datetime

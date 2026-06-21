@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.config import get_settings
 from app.database import init_db
-from app.api import auth, projects, environments, secrets, audit, members, share, ssh_credentials
+from app.api import auth, projects, environments, applications, secrets, audit, members, share, ssh_credentials
 
 settings = get_settings()
 
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(environments.router, prefix="/api/v1")
+app.include_router(applications.router, prefix="/api/v1")
 app.include_router(secrets.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(members.router, prefix="/api/v1")

@@ -63,40 +63,59 @@ export const envsApi = {
     api.delete(`/projects/${projectId}/environments/${envId}`),
 }
 
+// Applications
+export const appsApi = {
+  list: (projectId: string, envId: string) =>
+    api.get(`/projects/${projectId}/environments/${envId}/applications`),
+  get: (projectId: string, envId: string, appId: string) =>
+    api.get(`/projects/${projectId}/environments/${envId}/applications/${appId}`),
+  create: (projectId: string, envId: string, data: object) =>
+    api.post(`/projects/${projectId}/environments/${envId}/applications`, data),
+  update: (projectId: string, envId: string, appId: string, data: object) =>
+    api.patch(`/projects/${projectId}/environments/${envId}/applications/${appId}`, data),
+  delete: (projectId: string, envId: string, appId: string) =>
+    api.delete(`/projects/${projectId}/environments/${envId}/applications/${appId}`),
+}
+
+const _base = (pid: string, eid: string, aid: string) =>
+  `/projects/${pid}/environments/${eid}/applications/${aid}/secrets`
+
 // Secrets
 export const secretsApi = {
-  list: (projectId: string, envId: string, reveal = false) =>
-    api.get(`/projects/${projectId}/environments/${envId}/secrets`, { params: { reveal } }),
-  create: (projectId: string, envId: string, data: object) =>
-    api.post(`/projects/${projectId}/environments/${envId}/secrets`, data),
-  update: (projectId: string, envId: string, secretId: string, data: object) =>
-    api.patch(`/projects/${projectId}/environments/${envId}/secrets/${secretId}`, data),
-  delete: (projectId: string, envId: string, secretId: string) =>
-    api.delete(`/projects/${projectId}/environments/${envId}/secrets/${secretId}`),
-  versions: (projectId: string, envId: string, secretId: string) =>
-    api.get(`/projects/${projectId}/environments/${envId}/secrets/${secretId}/versions`),
-  exportDotenv: (projectId: string, envId: string) =>
-    api.get(`/projects/${projectId}/environments/${envId}/secrets/export/dotenv`, {
-      responseType: 'blob'
-    }),
-  importDotenv: (projectId: string, envId: string, content: string, overwrite = false) =>
+  list: (projectId: string, envId: string, appId: string, reveal = false) =>
+    api.get(_base(projectId, envId, appId), { params: { reveal } }),
+  create: (projectId: string, envId: string, appId: string, data: object) =>
+    api.post(_base(projectId, envId, appId), data),
+  update: (projectId: string, envId: string, appId: string, secretId: string, data: object) =>
+    api.patch(`${_base(projectId, envId, appId)}/${secretId}`, data),
+  delete: (projectId: string, envId: string, appId: string, secretId: string) =>
+    api.delete(`${_base(projectId, envId, appId)}/${secretId}`),
+  versions: (projectId: string, envId: string, appId: string, secretId: string) =>
+    api.get(`${_base(projectId, envId, appId)}/${secretId}/versions`),
+  exportDotenv: (projectId: string, envId: string, appId: string) =>
+    api.get(`${_base(projectId, envId, appId)}/export/dotenv`, { responseType: 'blob' }),
+  importDotenv: (projectId: string, envId: string, appId: string, content: string, overwrite = false) =>
     api.post(
-      `/projects/${projectId}/environments/${envId}/secrets/import/dotenv`,
+      `${_base(projectId, envId, appId)}/import/dotenv`,
       { env_content: content },
       { params: { overwrite } }
     ),
-  reevaluateSensitive: (projectId: string, envId: string) =>
-    api.post(`/projects/${projectId}/environments/${envId}/secrets/reevaluate-sensitive`),
+  reevaluateSensitive: (projectId: string, envId: string, appId: string) =>
+    api.post(`${_base(projectId, envId, appId)}/reevaluate-sensitive`),
   sshFetch: (
     projectId: string,
     envId: string,
+    appId: string,
     params: {
       credential_id?: string
       host?: string; port?: number; username?: string; private_key?: string
       path: string
     }
-  ) => api.post(`/projects/${projectId}/environments/${envId}/secrets/fetch/ssh`, params),
+  ) => api.post(`${_base(projectId, envId, appId)}/fetch/ssh`, params),
 }
+
+const _shareBase = (pid: string, eid: string, aid: string) =>
+  `/projects/${pid}/environments/${eid}/applications/${aid}/share-links`
 
 // Members
 export const membersApi = {
@@ -109,14 +128,14 @@ export const membersApi = {
     api.delete(`/projects/${projectId}/members/${memberId}`),
 }
 
-// Share links
+// Share links (now scoped to an application)
 export const shareLinksApi = {
-  create: (projectId: string, envId: string, hours: number, note?: string) =>
-    api.post(`/projects/${projectId}/environments/${envId}/share-links`, { hours, note }),
-  list: (projectId: string, envId: string) =>
-    api.get(`/projects/${projectId}/environments/${envId}/share-links`),
-  revoke: (projectId: string, envId: string, linkId: string) =>
-    api.delete(`/projects/${projectId}/environments/${envId}/share-links/${linkId}`),
+  create: (projectId: string, envId: string, appId: string, hours: number, note?: string) =>
+    api.post(_shareBase(projectId, envId, appId), { hours, note }),
+  list: (projectId: string, envId: string, appId: string) =>
+    api.get(_shareBase(projectId, envId, appId)),
+  revoke: (projectId: string, envId: string, appId: string, linkId: string) =>
+    api.delete(`${_shareBase(projectId, envId, appId)}/${linkId}`),
   getPublic: (token: string) =>
     api.get(`/share/${token}`),
 }

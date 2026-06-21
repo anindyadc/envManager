@@ -25,6 +25,16 @@ export interface Project {
   environment_count: number
 }
 
+export interface Environment {
+  id: string
+  name: string
+  env_type: EnvironmentType
+  project_id: string
+  created_at: string
+  updated_at: string
+  app_count: number
+}
+
 export interface SSHServerSummary {
   id: string
   label: string
@@ -33,11 +43,10 @@ export interface SSHServerSummary {
   username: string
 }
 
-export interface Environment {
+export interface Application {
   id: string
   name: string
-  env_type: EnvironmentType
-  project_id: string
+  environment_id: string
   ssh_credential_id: string | null
   remote_path: string | null
   ssh_server: SSHServerSummary | null
@@ -51,7 +60,7 @@ export interface Secret {
   key: string
   value: string | null
   is_sensitive: boolean
-  environment_id: string
+  application_id: string
   created_by: string
   created_at: string
   updated_at: string
@@ -82,7 +91,7 @@ export interface ProjectMember {
 export interface ShareLink {
   id: string
   token: string
-  environment_id: string
+  application_id: string
   project_id: string
   expires_at: string
   note: string | null

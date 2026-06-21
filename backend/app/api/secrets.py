@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.secret import Secret, SecretVersion
-from app.models.environment import Environment
+from app.models.application import Application
 from app.schemas.secret import (
     SecretCreate, SecretUpdate, SecretResponse, SecretVersionResponse, BulkSecretImport
 )
@@ -17,9 +17,11 @@ from app.core.encryption import get_encryption_service
 from app.models.user import User, UserRole
 from app.services.audit_service import log_action
 
-router = APIRouter(prefix="/projects/{project_id}/environments/{env_id}/secrets", tags=["secrets"])
+router = APIRouter(
+    prefix="/projects/{project_id}/environments/{env_id}/applications/{app_id}/secrets",
+    tags=["secrets"],
+)
 
-# Keys containing these words are auto-marked sensitive on import
 _SENSITIVE_PATTERNS = {
     'PASSWORD', 'PASSWD', 'PWD', 'SECRET', 'KEY', 'TOKEN',
     'CREDENTIAL', 'PRIVATE', 'AUTH', 'CERT', 'SSL', 'SIGNATURE',
@@ -28,7 +30,6 @@ _SENSITIVE_PATTERNS = {
 
 
 def _auto_sensitive(key: str) -> bool:
-    """Return True if the key name suggests it holds a sensitive value."""
     key_upper = key.upper()
     return any(pattern in key_upper for pattern in _SENSITIVE_PATTERNS)
 
@@ -45,15 +46,13 @@ def _serialize_secret(secret: Secret, user: User, reveal: bool = False) -> Secre
         plaintext = enc.decrypt(secret.encrypted_value)
     except Exception:
         plaintext = "[decryption error]"
-
-    # Sensitive values are always masked unless the caller explicitly requests reveal
     show_value = plaintext if (reveal or not secret.is_sensitive) else _mask(plaintext)
     return SecretResponse(
         id=secret.id,
         key=secret.key,
         value=show_value,
         is_sensitive=secret.is_sensitive,
-        environment_id=secret.environment_id,
+        application_id=secret.application_id,
         created_by=secret.created_by,
         created_at=secret.created_at,
         updated_at=secret.updated_at,
@@ -61,19 +60,19 @@ def _serialize_secret(secret: Secret, user: User, reveal: bool = False) -> Secre
     )
 
 
-async def _get_env_or_404(env_id: str, project_id: str, db: AsyncSession) -> Environment:
+async def _get_app_or_404(app_id: str, env_id: str, db: AsyncSession) -> Application:
     result = await db.execute(
-        select(Environment).where(Environment.id == env_id, Environment.project_id == project_id)
+        select(Application).where(Application.id == app_id, Application.environment_id == env_id)
     )
-    env = result.scalar_one_or_none()
-    if not env:
-        raise HTTPException(status_code=404, detail="Environment not found")
-    return env
+    app = result.scalar_one_or_none()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return app
 
 
-async def _get_secret_or_404(secret_id: str, env_id: str, db: AsyncSession) -> Secret:
+async def _get_secret_or_404(secret_id: str, app_id: str, db: AsyncSession) -> Secret:
     result = await db.execute(
-        select(Secret).where(Secret.id == secret_id, Secret.environment_id == env_id)
+        select(Secret).where(Secret.id == secret_id, Secret.application_id == app_id)
     )
     secret = result.scalar_one_or_none()
     if not secret:
@@ -85,30 +84,31 @@ async def _get_secret_or_404(secret_id: str, env_id: str, db: AsyncSession) -> S
 async def create_secret(
     project_id: str,
     env_id: str,
+    app_id: str,
     payload: SecretCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    await _get_env_or_404(env_id, project_id, db)
+    await _get_app_or_404(app_id, env_id, db)
 
     existing = await db.execute(
-        select(Secret).where(Secret.environment_id == env_id, Secret.key == payload.key)
+        select(Secret).where(Secret.application_id == app_id, Secret.key == payload.key)
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=f"Key '{payload.key}' already exists in this environment")
+        raise HTTPException(status_code=409, detail=f"Key '{payload.key}' already exists")
 
     enc = get_encryption_service()
     secret = Secret(
         key=payload.key,
         encrypted_value=enc.encrypt(payload.value),
         is_sensitive=payload.is_sensitive,
-        environment_id=env_id,
+        application_id=app_id,
         created_by=current_user.id,
     )
     db.add(secret)
     await db.flush()
     await log_action(db, current_user.id, "CREATE", "secret", secret.id, secret.key,
-                     detail=f"env={env_id}")
+                     detail=f"app={app_id}")
     return _serialize_secret(secret, current_user)
 
 
@@ -116,18 +116,19 @@ async def create_secret(
 async def list_secrets(
     project_id: str,
     env_id: str,
+    app_id: str,
     reveal: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_env_or_404(env_id, project_id, db)
+    await _get_app_or_404(app_id, env_id, db)
     result = await db.execute(
-        select(Secret).where(Secret.environment_id == env_id).order_by(Secret.key)
+        select(Secret).where(Secret.application_id == app_id).order_by(Secret.key)
     )
     secrets = result.scalars().all()
     if reveal:
         await log_action(db, current_user.id, "READ", "secret", None, None,
-                         detail=f"reveal=true env={env_id}")
+                         detail=f"reveal=true app={app_id}")
     return [_serialize_secret(s, current_user, reveal=reveal) for s in secrets]
 
 
@@ -135,13 +136,14 @@ async def list_secrets(
 async def get_secret(
     project_id: str,
     env_id: str,
+    app_id: str,
     secret_id: str,
     reveal: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_env_or_404(env_id, project_id, db)
-    secret = await _get_secret_or_404(secret_id, env_id, db)
+    await _get_app_or_404(app_id, env_id, db)
+    secret = await _get_secret_or_404(secret_id, app_id, db)
     return _serialize_secret(secret, current_user, reveal=reveal)
 
 
@@ -149,17 +151,17 @@ async def get_secret(
 async def update_secret(
     project_id: str,
     env_id: str,
+    app_id: str,
     secret_id: str,
     payload: SecretUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    await _get_env_or_404(env_id, project_id, db)
-    secret = await _get_secret_or_404(secret_id, env_id, db)
+    await _get_app_or_404(app_id, env_id, db)
+    secret = await _get_secret_or_404(secret_id, app_id, db)
     enc = get_encryption_service()
 
     if payload.value is not None:
-        # Archive current version before updating
         version_entry = SecretVersion(
             secret_id=secret.id,
             encrypted_value=secret.encrypted_value,
@@ -181,12 +183,13 @@ async def update_secret(
 async def delete_secret(
     project_id: str,
     env_id: str,
+    app_id: str,
     secret_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    await _get_env_or_404(env_id, project_id, db)
-    secret = await _get_secret_or_404(secret_id, env_id, db)
+    await _get_app_or_404(app_id, env_id, db)
+    secret = await _get_secret_or_404(secret_id, app_id, db)
     await log_action(db, current_user.id, "DELETE", "secret", secret.id, secret.key)
     await db.delete(secret)
 
@@ -195,12 +198,13 @@ async def delete_secret(
 async def get_secret_versions(
     project_id: str,
     env_id: str,
+    app_id: str,
     secret_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_env_or_404(env_id, project_id, db)
-    secret = await _get_secret_or_404(secret_id, env_id, db)
+    await _get_app_or_404(app_id, env_id, db)
+    secret = await _get_secret_or_404(secret_id, app_id, db)
     result = await db.execute(
         select(SecretVersion)
         .where(SecretVersion.secret_id == secret.id)
@@ -213,35 +217,34 @@ async def get_secret_versions(
 async def export_dotenv(
     project_id: str,
     env_id: str,
+    app_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Export all secrets for this environment as a .env file (plain text, handle with care)."""
-    env = await _get_env_or_404(env_id, project_id, db)
+    app = await _get_app_or_404(app_id, env_id, db)
     result = await db.execute(
-        select(Secret).where(Secret.environment_id == env_id).order_by(Secret.key)
+        select(Secret).where(Secret.application_id == app_id).order_by(Secret.key)
     )
     secrets = result.scalars().all()
     enc = get_encryption_service()
 
-    lines = [f"# Generated by Multi-Cloud ENV Manager", f"# Environment: {env.name}", ""]
+    lines = [f"# Generated by Multi-Cloud ENV Manager", f"# Application: {app.name}", ""]
     for s in secrets:
         try:
             value = enc.decrypt(s.encrypted_value)
         except Exception:
             value = ""
-        # Quote values that contain spaces or special chars
         if any(c in value for c in [' ', '"', "'", '\n', '#']):
             value = f'"{value}"'
         lines.append(f"{s.key}={value}")
 
     content = "\n".join(lines) + "\n"
-    await log_action(db, current_user.id, "EXPORT", "environment", env_id, env.name,
+    await log_action(db, current_user.id, "EXPORT", "application", app_id, app.name,
                      detail="dotenv export")
     return Response(
         content=content,
         media_type="text/plain",
-        headers={"Content-Disposition": f'attachment; filename=".env.{env.name}"'}
+        headers={"Content-Disposition": f'attachment; filename=".env.{app.name}"'}
     )
 
 
@@ -249,13 +252,13 @@ async def export_dotenv(
 async def import_dotenv(
     project_id: str,
     env_id: str,
+    app_id: str,
     payload: BulkSecretImport,
     overwrite: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    """Import secrets from .env file content. Skips comments and blank lines."""
-    await _get_env_or_404(env_id, project_id, db)
+    await _get_app_or_404(app_id, env_id, db)
     enc = get_encryption_service()
 
     created = updated = skipped = 0
@@ -276,7 +279,7 @@ async def import_dotenv(
         sensitive = _auto_sensitive(key)
 
         existing_result = await db.execute(
-            select(Secret).where(Secret.environment_id == env_id, Secret.key == key)
+            select(Secret).where(Secret.application_id == app_id, Secret.key == key)
         )
         existing = existing_result.scalar_one_or_none()
 
@@ -300,24 +303,23 @@ async def import_dotenv(
                 key=key,
                 encrypted_value=enc.encrypt(value),
                 is_sensitive=sensitive,
-                environment_id=env_id,
+                application_id=app_id,
                 created_by=current_user.id,
             )
             db.add(secret)
             created += 1
 
-    await log_action(db, current_user.id, "IMPORT", "environment", env_id,
+    await log_action(db, current_user.id, "IMPORT", "application", app_id,
                      detail=f"created={created} updated={updated} skipped={skipped}")
     return {"created": created, "updated": updated, "skipped": skipped}
 
 
 class SSHFetchRequest(BaseModel):
-    # Either credential_id (saved server) OR inline connection fields must be provided
     credential_id: str | None = None
     host: str | None = None
     port: int = 22
     username: str | None = None
-    auth_type: str = "key"        # "key" or "password"
+    auth_type: str = "key"
     private_key: str | None = None
     password: str | None = None
     path: str
@@ -327,7 +329,6 @@ def _ssh_read_file(
     host: str, port: int, username: str, path: str,
     *, private_key_text: str | None = None, password: str | None = None,
 ) -> str:
-    """Blocking SSH/SFTP read — runs inside asyncio.to_thread."""
     try:
         import paramiko
     except ImportError:
@@ -357,12 +358,12 @@ def _ssh_read_file(
 async def fetch_from_ssh(
     project_id: str,
     env_id: str,
+    app_id: str,
     payload: SSHFetchRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    """Fetch raw .env file content from a remote server over SSH. Credentials are never stored."""
-    await _get_env_or_404(env_id, project_id, db)
+    app = await _get_app_or_404(app_id, env_id, db)
 
     if ".." in payload.path:
         raise HTTPException(status_code=400, detail="Path must not contain '..'")
@@ -416,14 +417,12 @@ async def fetch_from_ssh(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"SSH error: {exc}")
 
-    # Persist the server+path linkage on the environment so the frontend can auto-fill next time.
-    # Only for saved credentials (inline/manual mode has no credential to link).
-    env = await _get_env_or_404(env_id, project_id, db)
+    # Persist server+path link on the application for saved-credential mode
     if payload.credential_id:
-        env.ssh_credential_id = payload.credential_id
-        env.remote_path = payload.path
+        app.ssh_credential_id = payload.credential_id
+        app.remote_path = payload.path
 
-    await log_action(db, current_user.id, "READ", "environment", env_id,
+    await log_action(db, current_user.id, "READ", "application", app_id,
                      detail=f"ssh-fetch host={host} path={payload.path}")
     return {"content": content}
 
@@ -432,12 +431,12 @@ async def fetch_from_ssh(
 async def reevaluate_sensitive(
     project_id: str,
     env_id: str,
+    app_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_editor),
 ):
-    """Re-evaluate the sensitive flag for all secrets based on key name patterns."""
-    await _get_env_or_404(env_id, project_id, db)
-    result = await db.execute(select(Secret).where(Secret.environment_id == env_id))
+    await _get_app_or_404(app_id, env_id, db)
+    result = await db.execute(select(Secret).where(Secret.application_id == app_id))
     secrets = result.scalars().all()
 
     changed = unchanged = 0
@@ -449,6 +448,6 @@ async def reevaluate_sensitive(
         else:
             unchanged += 1
 
-    await log_action(db, current_user.id, "UPDATE", "environment", env_id,
+    await log_action(db, current_user.id, "UPDATE", "application", app_id,
                      detail=f"reevaluate-sensitive changed={changed} unchanged={unchanged}")
     return {"changed": changed, "unchanged": unchanged}

@@ -146,7 +146,7 @@ export default function ProjectDetail() {
                   className="font-medium text-gray-900 hover:text-brand-600 transition-colors">
                   {env.name}
                 </Link>
-                <p className="text-xs text-gray-400 mt-0.5">{env.secret_count} secret{env.secret_count !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{env.app_count} app{env.app_count !== 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
                 {isEditor && (

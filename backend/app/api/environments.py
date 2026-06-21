@@ -5,9 +5,8 @@ from sqlalchemy import select, func
 from app.database import get_db
 from app.models.environment import Environment
 from app.models.project import Project
-from app.models.secret import Secret
-from app.models.ssh_credential import SSHCredential
-from app.schemas.environment import EnvironmentCreate, EnvironmentUpdate, EnvironmentResponse, SSHServerSummary
+from app.models.application import Application
+from app.schemas.environment import EnvironmentCreate, EnvironmentUpdate, EnvironmentResponse
 from app.core.dependencies import get_current_user, require_editor
 from app.models.user import User
 from app.services.audit_service import log_action
@@ -26,21 +25,11 @@ async def _get_env_or_404(env_id: str, project_id: str, db: AsyncSession) -> Env
 
 
 async def _enrich(env: Environment, db: AsyncSession) -> EnvironmentResponse:
-    count_result = await db.execute(
-        select(func.count(Secret.id)).where(Secret.environment_id == env.id)
+    count = await db.execute(
+        select(func.count(Application.id)).where(Application.environment_id == env.id)
     )
-    secret_count = count_result.scalar() or 0
     data = EnvironmentResponse.model_validate(env)
-    data.secret_count = secret_count
-
-    if env.ssh_credential_id:
-        cred_result = await db.execute(
-            select(SSHCredential).where(SSHCredential.id == env.ssh_credential_id)
-        )
-        cred = cred_result.scalar_one_or_none()
-        if cred:
-            data.ssh_server = SSHServerSummary.model_validate(cred)
-
+    data.app_count = count.scalar() or 0
     return data
 
 

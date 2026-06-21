@@ -12,13 +12,13 @@ class Secret(Base):
     key: Mapped[str] = mapped_column(String, nullable=False, index=True)
     encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)
     is_sensitive: Mapped[bool] = mapped_column(Boolean, default=True)  # mask in UI if True
-    environment_id: Mapped[str] = mapped_column(String, ForeignKey("environments.id", ondelete="CASCADE"), nullable=False)
+    application_id: Mapped[str] = mapped_column(String, ForeignKey("applications.id", ondelete="CASCADE"), nullable=False)
     created_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     version: Mapped[int] = mapped_column(Integer, default=1)
 
-    environment: Mapped["Environment"] = relationship("Environment", back_populates="secrets")  # noqa
+    application: Mapped["Application"] = relationship("Application", back_populates="secrets")  # noqa
     versions: Mapped[list["SecretVersion"]] = relationship(
         "SecretVersion", back_populates="secret", cascade="all, delete-orphan", order_by="SecretVersion.version.desc()"
     )

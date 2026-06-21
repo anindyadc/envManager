@@ -11,6 +11,7 @@ interface PublicSecret {
 }
 
 interface PublicView {
+  app_name: string
   environment_name: string
   project_name: string
   env_type: string
@@ -112,7 +113,7 @@ export default function ShareView() {
               <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Shared Environment</span>
             </div>
             <h1 className="text-xl font-bold text-gray-900">
-              {data.project_name} / {data.environment_name}
+              {data.project_name} / {data.environment_name} / {data.app_name}
             </h1>
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
               <span className="badge bg-gray-100 text-gray-600">{data.env_type}</span>
