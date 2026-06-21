@@ -197,11 +197,11 @@ export default function SSHImportModal({ projectId, envId, env, onClose }: Props
                     <label className="block text-sm font-medium text-gray-700 mb-1">Remote .env path *</label>
                     <input className="input font-mono" required placeholder="/home/ubuntu/myapp/.env"
                       value={remotePath} onChange={e => setRemotePath(e.target.value)} />
-                    {selectedCredId === env.ssh_credential_id && env.remote_path ? (
+                    {selectedCredId && selectedCredId === env.ssh_credential_id && env.remote_path ? (
                       <p className="text-xs text-green-600 mt-1">
                         ✓ Auto-filled from this environment's linked server config
                       </p>
-                    ) : selectedCredId && selectedCredId !== env.ssh_credential_id ? (
+                    ) : selectedCredId && env.ssh_credential_id && selectedCredId !== env.ssh_credential_id ? (
                       <p className="text-xs text-amber-600 mt-1">
                         Different server selected — enter the .env path for this server
                       </p>
