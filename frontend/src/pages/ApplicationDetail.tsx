@@ -4,15 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { secretsApi, appsApi, projectsApi, envsApi, getApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
-  Plus, Eye, EyeOff, Pencil, Trash2, ArrowLeft, Download, Upload,
-  Copy, Check, X, RefreshCw, Link2, Key, Server, Unlink
+  Plus, Eye, EyeOff, Pencil, Trash2, Download, Upload,
+  Copy, Check, X, RefreshCw, Link2, Key, Server, Unlink, Clock
 } from 'lucide-react'
 import type { Secret, Application, Environment, Project } from '../types'
 import ShareLinkModal from '../components/ShareLinkModal'
 import SSHImportModal from '../components/SSHImportModal'
+import SecretHistoryDrawer from '../components/SecretHistoryDrawer'
 
-function SecretRow({ secret, projectId, envId, appId, canEdit }: {
+function SecretRow({ secret, projectId, envId, appId, canEdit, onShowHistory }: {
   secret: Secret; projectId: string; envId: string; appId: string; canEdit: boolean
+  onShowHistory: (s: Secret) => void
 }) {
   const qc = useQueryClient()
   const [revealed, setRevealed] = useState(false)
@@ -94,22 +96,39 @@ function SecretRow({ secret, projectId, envId, appId, canEdit }: {
           </div>
         )}
       </td>
-      <td className="py-3 px-4 text-xs text-gray-400 text-center">v{secret.version}</td>
+      <td className="py-3 px-4 text-xs text-gray-400 text-center">
+        <button
+          onClick={() => onShowHistory(secret)}
+          title="View version history"
+          className="inline-flex items-center gap-1 hover:text-brand-600 transition-colors"
+        >
+          v{secret.version}
+          <Clock size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
+      </td>
       <td className="py-3 px-4 text-xs text-gray-400">{new Date(secret.updated_at).toLocaleDateString()}</td>
-      {canEdit && (
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-            <button onClick={() => { setEditing(true); setNewValue('') }}
-              className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded">
-              <Pencil size={13} />
-            </button>
-            <button onClick={() => { if (confirm(`Delete "${secret.key}"?`)) deleteMutation.mutate() }}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </td>
-      )}
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+          <button
+            onClick={() => onShowHistory(secret)}
+            title="Version history"
+            className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded">
+            <Clock size={13} />
+          </button>
+          {canEdit && (
+            <>
+              <button onClick={() => { setEditing(true); setNewValue('') }}
+                className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded">
+                <Pencil size={13} />
+              </button>
+              <button onClick={() => { if (confirm(`Delete "${secret.key}"?`)) deleteMutation.mutate() }}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
     </tr>
   )
 }
@@ -253,6 +272,7 @@ export default function ApplicationDetail() {
   const [showSSHImport, setShowSSHImport] = useState(false)
   const [search, setSearch] = useState('')
   const [reevalResult, setReevalResult] = useState<{ changed: number; unchanged: number } | null>(null)
+  const [historySecret, setHistorySecret] = useState<Secret | null>(null)
 
   const reevaluateMutation = useMutation({
     mutationFn: () => secretsApi.reevaluateSensitive(projectId!, envId!, appId!),
@@ -408,7 +428,7 @@ export default function ApplicationDetail() {
                 <th className="py-3 px-4">Value</th>
                 <th className="py-3 px-4 text-center">Version</th>
                 <th className="py-3 px-4">Updated</th>
-                {isEditor && <th className="py-3 px-4"></th>}
+                <th className="py-3 px-4"></th>
               </tr>
             </thead>
             <tbody>
@@ -420,6 +440,7 @@ export default function ApplicationDetail() {
                   envId={envId!}
                   appId={appId!}
                   canEdit={isEditor}
+                  onShowHistory={setHistorySecret}
                 />
               ))}
             </tbody>
@@ -439,6 +460,15 @@ export default function ApplicationDetail() {
         <ShareLinkModal
           projectId={projectId!} envId={envId!} appId={appId!} appName={app.name}
           onClose={() => setShowShareLinks(false)}
+        />
+      )}
+      {historySecret && (
+        <SecretHistoryDrawer
+          secret={historySecret}
+          projectId={projectId!}
+          envId={envId!}
+          appId={appId!}
+          onClose={() => setHistorySecret(null)}
         />
       )}
     </div>

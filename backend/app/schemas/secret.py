@@ -40,6 +40,7 @@ class SecretVersionResponse(BaseModel):
     id: str
     secret_id: str
     version: int
+    value: str | None  # decrypted; None when masked (sensitive + reveal=False)
     changed_by: str
     changed_at: datetime
 

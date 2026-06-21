@@ -90,8 +90,10 @@ export const secretsApi = {
     api.patch(`${_base(projectId, envId, appId)}/${secretId}`, data),
   delete: (projectId: string, envId: string, appId: string, secretId: string) =>
     api.delete(`${_base(projectId, envId, appId)}/${secretId}`),
-  versions: (projectId: string, envId: string, appId: string, secretId: string) =>
-    api.get(`${_base(projectId, envId, appId)}/${secretId}/versions`),
+  versions: (projectId: string, envId: string, appId: string, secretId: string, reveal = false) =>
+    api.get(`${_base(projectId, envId, appId)}/${secretId}/versions`, { params: { reveal } }),
+  restore: (projectId: string, envId: string, appId: string, secretId: string, versionId: string) =>
+    api.post(`${_base(projectId, envId, appId)}/${secretId}/versions/${versionId}/restore`),
   exportDotenv: (projectId: string, envId: string, appId: string) =>
     api.get(`${_base(projectId, envId, appId)}/export/dotenv`, { responseType: 'blob' }),
   importDotenv: (projectId: string, envId: string, appId: string, content: string, overwrite = false) =>

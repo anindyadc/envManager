@@ -67,6 +67,15 @@ export interface Secret {
   version: number
 }
 
+export interface SecretVersion {
+  id: string
+  secret_id: string
+  version: number
+  value: string | null
+  changed_by: string
+  changed_at: string
+}
+
 export interface AuditLog {
   id: string
   user_id: string

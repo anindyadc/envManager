@@ -200,6 +200,7 @@ async def get_secret_versions(
     env_id: str,
     app_id: str,
     secret_id: str,
+    reveal: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -210,7 +211,62 @@ async def get_secret_versions(
         .where(SecretVersion.secret_id == secret.id)
         .order_by(SecretVersion.version.desc())
     )
-    return result.scalars().all()
+    versions = result.scalars().all()
+    enc = get_encryption_service()
+    out = []
+    for v in versions:
+        try:
+            plaintext = enc.decrypt(v.encrypted_value)
+        except Exception:
+            plaintext = None
+        out.append(SecretVersionResponse(
+            id=v.id,
+            secret_id=v.secret_id,
+            version=v.version,
+            value=plaintext if (reveal or not secret.is_sensitive) else None,
+            changed_by=v.changed_by,
+            changed_at=v.changed_at,
+        ))
+    return out
+
+
+@router.post("/{secret_id}/versions/{version_id}/restore", response_model=SecretResponse)
+async def restore_secret_version(
+    project_id: str,
+    env_id: str,
+    app_id: str,
+    secret_id: str,
+    version_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_editor),
+):
+    await _get_app_or_404(app_id, env_id, db)
+    secret = await _get_secret_or_404(secret_id, app_id, db)
+
+    ver_result = await db.execute(
+        select(SecretVersion).where(
+            SecretVersion.id == version_id, SecretVersion.secret_id == secret_id
+        )
+    )
+    ver = ver_result.scalar_one_or_none()
+    if not ver:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    # Archive the current value before overwriting (makes the restore itself reversible)
+    db.add(SecretVersion(
+        secret_id=secret.id,
+        encrypted_value=secret.encrypted_value,
+        version=secret.version,
+        changed_by=current_user.id,
+    ))
+    secret.encrypted_value = ver.encrypted_value
+    secret.version += 1
+
+    await log_action(db, current_user.id, "RESTORE", "secret", secret.id,
+                     f"{secret.key} restored to v{ver.version}")
+    await db.flush()
+    await db.refresh(secret)
+    return _serialize_secret(secret, current_user)
 
 
 @router.get("/export/dotenv", response_class=Response)
