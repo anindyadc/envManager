@@ -61,7 +61,10 @@ export default function SecretHistoryDrawer({ secret, projectId, envId, appId, o
   })
 
   const diffVersion = versions.find(v => v.id === diffId)
-  const currentValue = reveal ? (currentSecret?.value ?? null) : null
+  // Non-sensitive: value is already in the secret prop; sensitive: need reveal query
+  const currentValue = reveal
+    ? (currentSecret?.value ?? secret.value)
+    : (secret.is_sensitive ? null : secret.value)
 
   return (
     <div className="fixed inset-0 z-50 flex">
